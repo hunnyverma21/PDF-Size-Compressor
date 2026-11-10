@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Size Compressor</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#182033;--muted:#697386;--accent:#5267e8;--line:#e4e8f0}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+main{max-width:900px;margin:42px auto;padding:0 18px}.top{text-align:center;margin-bottom:26px}
+.logo{width:54px;height:54px;border-radius:16px;background:#e8ebff;color:var(--accent);display:grid;place-items:center;font-size:26px;margin:0 auto 14px}
+h1{font-size:clamp(27px,5vw,38px);margin:0 0 9px}.sub{color:var(--muted);margin:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px;box-shadow:0 12px 35px #24345b0b}
+.drop{border:2px dashed #c9d0e4;border-radius:16px;padding:38px 18px;text-align:center;cursor:pointer;transition:.2s}
+.drop.over{border-color:var(--accent);background:#f5f6ff}.drop strong{display:block;font-size:18px;margin:9px 0 5px}.drop p{color:var(--muted);margin:0 0 15px;font-size:14px}
+button,.choose{border:0;border-radius:10px;padding:11px 17px;background:var(--accent);color:white;font-weight:650;cursor:pointer;font-size:14px}
+button:disabled{opacity:.45;cursor:not-allowed}.choose{display:inline-block}
+input[type=file]{display:none}.file{display:none;margin-top:17px;padding:14px;border:1px solid var(--line);border-radius:12px;align-items:center;gap:12px}
+.file.show{display:flex}.fileicon{font-size:25px}.fileinfo{flex:1;min-width:0}.filename{font-weight:650;overflow-wrap:anywhere}.filesize{font-size:13px;color:var(--muted);margin-top:3px}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+.setting{padding:16px;border:1px solid var(--line);border-radius:13px}.setting label{font-weight:650;display:block;margin-bottom:10px}
+select{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-size:14px}
+.hint{font-size:12px;color:var(--muted);line-height:1.5;margin:9px 0 0}
+.actions{display:flex;align-items:center;gap:12px;margin-top:22px;flex-wrap:wrap}.status{color:var(--muted);font-size:13px}
+.progress{height:7px;background:#edf0f7;border-radius:99px;overflow:hidden;margin-top:18px;display:none}.bar{height:100%;width:0;background:var(--accent);transition:width .2s}
+.result{display:none;margin-top:20px;padding:17px;border-radius:13px;background:#f0f8f3;border:1px solid #d8ecdf}.result.show{display:block}.result strong{color:#17683a}
+.note{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.55}
+@media(max-width:600px){.settings{grid-template-columns:1fr}.panel{padding:17px}.drop{padding:30px 12px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="logo">⇩</div>
+    <h1>PDF Size Compressor</h1>
+    <p class="sub">Reduce PDF file size right in your browser.</p>
+  </header>
+  <section class="panel">
+    <div class="drop" id="drop">
+      <div style="font-size:34px">📄</div>
+      <strong>Drop your PDF here</strong>
+      <p>or choose a file from your device</p>
+      <label class="choose" for="fileInput">Choose PDF</label>
+      <input id="fileInput" type="file" accept="application/pdf,.pdf">
+    </div>
+    <div class="file" id="fileCard">
+      <div class="fileicon">📕</div>
+      <div class="fileinfo"><div class="filename" id="fileName"></div><div class="filesize" id="fileSize"></div></div>
+      <button id="removeBtn" style="background:#eef0f6;color:#46506a">Remove</button>
+    </div>
+    <div class="settings">
+      <div class="setting">
+        <label for="quality">Compression level</label>
+        <select id="quality">
+          <option value="0.82">Recommended — balanced</option>
+          <option value="0.65">Strong — smaller file</option>
+          <option value="0.45">Maximum — smallest file</option>
+          <option value="0.95">Light — higher quality</option>
+        </select>
+        <p class="hint">Controls image quality in the compressed PDF.</p>
+      </div>
+      <div class="setting">
+        <label for="resolution">Image resolution</label>
+        <select id="resolution">
+          <option value="150">150 DPI — recommended</option>
+          <option value="120">120 DPI — smaller</option>
+          <option value="96">96 DPI — maximum reduction</option>
+          <option value="200">200 DPI — sharper</option>
+        </select>
+        <p class="hint">Lower resolution usually creates a smaller PDF.</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="compressBtn" disabled>Compress PDF</button>
+      <span class="status" id="status">Select a PDF to begin.</span>
+    </div>
+    <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+    <div class="result" id="result"></div>
+    <p class="note">Privacy: files are processed locally in your browser and are not uploaded to a server. This method converts each page into an image, so selectable text, links, forms, and accessibility features may not be preserved. Keep the original for archival or official use. PDF.js and jsPDF are loaded from public CDNs.</p>
+  </section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=id=>document.getElementById(id);
+let selectedFile=null;
+function fmt(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(2)+' MB'}
+function setFile(file){
+  if(!file)return;
+  if(file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf')){ $('status').textContent='Please select a PDF file.';return; }
+  selectedFile=file;$('fileName').textContent=file.name;$('fileSize').textContent=fmt(file.size);
+  $('fileCard').classList.add('show');$('compressBtn').disabled=false;$('status').textContent='Ready to compress.';$('result').classList.remove('show');
+}
+function clearFile(){selectedFile=null;$('fileInput').value='';$('fileCard').classList.remove('show');$('compressBtn').disabled=true;$('status').textContent='Select a PDF to begin.';$('result').classList.remove('show')}
+$('fileInput').addEventListener('change',e=>setFile(e.target.files[0]));
+$('removeBtn').onclick=clearFile;
+const drop=$('drop');
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');setFile(e.dataTransfer.files[0])});
+$('compressBtn').onclick=async()=>{
+ if(!selectedFile)return;
+ const btn=$('compressBtn'), progress=$('progress'), bar=$('bar');
+ btn.disabled=true;progress.style.display='block';bar.style.width='2%';$('result').classList.remove('show');
+ try{
+  $('status').textContent='Reading PDF…';
+  const bytes=await selectedFile.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+  const quality=Number($('quality').value),dpi=Number($('resolution').value);
+  const {jsPDF}=window.jspdf;
+  let output=null;
+  for(let i=1;i<=pdf.numPages;i++){
+    $('status').textContent=`Processing page ${i} of ${pdf.numPages}…`;
+    const page=await pdf.getPage(i);
+    const scale=dpi/72, viewport=page.getViewport({scale});
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{alpha:false});
+    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:ctx,viewport}).promise;
+    const img=canvas.toDataURL('image/jpeg',quality);
+    const width=page.view[2]-page.view[0],height=page.view[3]-page.view[1];
+    if(!output)output=new jsPDF({orientation:width>height?'landscape':'portrait',unit:'pt',format:[width,height],compress:true});
+    else output.addPage([width,height],width>height?'landscape':'portrait');
+    output.addImage(img,'JPEG',0,0,width,height,undefined,'FAST');
+    canvas.width=1;canvas.height=1;
+    bar.style.width=(i/pdf.numPages*90+5)+'%';
+  }
+  const blob=output.output('blob');
+  const oldSize=selectedFile.size,newSize=blob.size;
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  const stem=selectedFile.name.replace(/\.pdf$/i,'');
+  a.href=url;a.download=stem+'_compressed.pdf';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const saved=oldSize-newSize,pct=Math.max(0,(saved/oldSize)*100);
+  $('result').innerHTML=`<strong>Compression complete</strong><div style="margin-top:8px">Original: ${fmt(oldSize)} &nbsp; → &nbsp; Compressed: ${fmt(newSize)}</div><div style="margin-top:5px">${saved>0?`Reduced by ${pct.toFixed(1)}% (${fmt(saved)} saved).`:`The output is ${fmt(-saved)} larger; this PDF may already be optimized.`}</div>`;
+  $('result').classList.add('show');$('status').textContent='Your compressed PDF has been downloaded.';bar.style.width='100%';
+ }catch(err){console.error(err);$('status').textContent='Could not process this PDF. It may be password-protected or damaged.'}
+ finally{btn.disabled=!selectedFile;setTimeout(()=>{progress.style.display='none';bar.style.width='0'},1200)}
+};
+</script>
+</body>
+</html>
